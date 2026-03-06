@@ -91,7 +91,34 @@ Then open **http://localhost:5173** in your browser.
 
 ### Screenshots
 
-![Shep Logo](public/assets/branding/shep-logo.png)
+<table>
+   <tr>
+      <td align="center">
+         <img src="public/assets/screenshots/home.png" alt="Home dashboard" /><br />
+         <sub><b>Home Dashboard</b> - Installed models, daemon status, and live system overview.</sub>
+      </td>
+      <td align="center">
+         <img src="public/assets/screenshots/add.png" alt="Add model flow" /><br />
+         <sub><b>Add Model</b> - Search and pull new Ollama models in one click.</sub>
+      </td>
+   </tr>
+   <tr>
+      <td align="center">
+         <img src="public/assets/screenshots/stop.png" alt="Stop model action" /><br />
+         <sub><b>Stop Model</b> - Unload active models to free VRAM immediately.</sub>
+      </td>
+      <td align="center">
+         <img src="public/assets/screenshots/delete.png" alt="Delete model confirmation" /><br />
+         <sub><b>Delete Model</b> - Confirm before permanently removing a model.</sub>
+      </td>
+   </tr>
+   <tr>
+      <td align="center" colspan="2">
+         <img src="public/assets/screenshots/settings.png" alt="Settings panel" width="45%" /><br />
+         <sub><b>Settings</b> - Configure model storage path and keep-alive behavior.</sub>
+      </td>
+   </tr>
+</table>
 
 ### Manual Setup (Alternative)
 
@@ -128,7 +155,7 @@ When you run `./launch.sh`, here's what's going on under the hood:
 ▶ Checking for Node.js...
 ✓ Node.js found (v20.10.0)
 ▶ Checking for Python environment...
-✓ Found Python venv at .venv-1
+✓ Found Python venv at .venv
 ```
 
 ### Dependency Installation
@@ -264,6 +291,7 @@ Make sure you have write permissions for `~/.zshrc`:
 ```bash
 ls -la ~/.zshrc  # Check permissions
 chmod 644 ~/.zshrc  # Fix if needed
+```
 
 
 ## Development
