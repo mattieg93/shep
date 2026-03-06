@@ -636,8 +636,8 @@ This allows cross-origin requests during development.
 
 ### Quick Start
 ```bash
-git clone https://github.com/mattgraham93/mattgraham93.github.io.git
-cd quick_tools/ollama_manager
+git clone https://github.com/mattieg93/shep.git
+cd shep
 chmod +x launch.sh
 ./launch.sh
 # Open http://localhost:5173
@@ -692,4 +692,4 @@ This project demonstrates full-stack development skills:
 - **Design:** UI/UX, branding, professional polish
 - **Documentation:** Technical writing, architecture diagrams, user guides
 
-**GitHub:** [Shep Repository](https://github.com/mattgraham93/mattgraham93.github.io/tree/main/quick_tools/ollama_manager)
+**GitHub:** [Shep Repository](https://github.com/mattieg93/shep)

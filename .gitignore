@@ -15,11 +15,9 @@ __pycache__/
 .Python
 build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/
@@ -34,9 +32,6 @@ MANIFEST
 
 # Node
 node_modules/
-npm-debug.log
-yarn-error.log
-package-lock.json
 dist/
 .parcel-cache/
 
@@ -46,7 +41,6 @@ dist/
 *.swp
 *.swo
 *~
-.DS_Store
 
 # Logs
 *.log
@@ -69,3 +63,10 @@ Thumbs.db
 .env.production
 
 /_tasks
+
+# Python tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/

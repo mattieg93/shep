@@ -49,8 +49,8 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 
 ```bash
 # Clone the repository
-git clone https://github.com/mattgraham93/shep.git
-cd shep/quick_tools/ollama_manager
+git clone https://github.com/mattieg93/shep.git
+cd shep
 
 # Install Python dependencies
 python -m venv .venv

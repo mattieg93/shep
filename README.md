@@ -75,7 +75,7 @@ Modern UI
 The easiest way to get started is using the **launch script**, which handles everything:
 
 ```bash
-cd quick_tools/ollama_manager
+cd shep
 chmod +x launch.sh
 ./launch.sh
 ```
@@ -91,7 +91,7 @@ Then open **http://localhost:5173** in your browser.
 
 ### Screenshots
 
-![Shep Application Screenshot](../../public/assets/images/ollama_manager.png)
+![Shep Logo](public/assets/branding/shep-logo.png)
 
 ### Manual Setup (Alternative)
 
@@ -99,8 +99,8 @@ If you prefer to start services separately:
 
 ```bash
 # Terminal 1 - Backend
-cd quick_tools/ollama_manager
-source .venv-1/bin/activate  # or your venv
+cd shep
+source .venv/bin/activate  # or your preferred venv
 python backend.py
 
 # Terminal 2 - Frontend (in the same directory)

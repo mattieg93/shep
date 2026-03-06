@@ -15,9 +15,9 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/mattgraham93/shep"
+    "url": "https://github.com/mattieg93/shep"
   },
-  "homepage": "https://github.com/mattgraham93/shep#readme",
+  "homepage": "https://github.com/mattieg93/shep#readme",
   "engines": {
     "node": ">=16.0.0"
   },
