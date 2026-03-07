@@ -22,33 +22,8 @@ function ModelsTable({ models, onDelete }) {
   const [deletingModel, setDeletingModel] = useState(null)
   const [timeoutSeconds, setTimeoutSeconds] = useState({})
 
-  if (models.length === 0) {
-    return (
-      <div className="text-center py-12 bg-white rounded-lg border border-slate-200">
-        <svg className="h-12 w-12 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 21l-4.35-4.35m0 0A7.5 7.5 0 103.305 3.305a7.5 7.5 0 0010.345 10.345z" />
-        </svg>
-        <p className="text-slate-600">No models found. Add one to get started!</p>
-      </div>
-    )
-  }
-
-  const formatSize = (bytes) => {
-    if (!bytes) return '—'
-    const gb = bytes / (1024 * 1024 * 1024)
-    return `${gb.toFixed(2)} GB`
-  }
-
-  const formatDate = (dateString) => {
-    if (!dateString) return '—'
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    })
-  }
-
   // Update countdown timers dynamically based on expires_at
+  // Must be before any early returns to satisfy Rules of Hooks
   useEffect(() => {
     const loadedModels = models.filter(m => m.loaded && m.expires_at)
     if (loadedModels.length === 0) {
@@ -91,6 +66,32 @@ function ModelsTable({ models, onDelete }) {
       setTimeoutSeconds(prev => ({ ...prev, ...initial }))
     }
   }, [models])
+
+  if (models.length === 0) {
+    return (
+      <div className="text-center py-12 bg-white rounded-lg border border-slate-200">
+        <svg className="h-12 w-12 text-slate-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+        </svg>
+        <p className="text-slate-600">No models found. Add one to get started!</p>
+      </div>
+    )
+  }
+
+  const formatSize = (bytes) => {
+    if (!bytes) return '—'
+    const gb = bytes / (1024 * 1024 * 1024)
+    return `${gb.toFixed(2)} GB`
+  }
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '—'
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  }
 
   const formatTimeout = (seconds) => {
     const mins = Math.floor(seconds / 60)

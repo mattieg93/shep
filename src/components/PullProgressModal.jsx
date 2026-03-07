@@ -18,7 +18,7 @@
  *   - Completion feedback
  */
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 
 function PullProgressModal({ modelName, onClose, onComplete }) {
   const [status, setStatus] = useState('Connecting...')
@@ -27,13 +27,18 @@ function PullProgressModal({ modelName, onClose, onComplete }) {
   const [totalSize, setTotalSize] = useState(0)
   const [completed, setCompleted] = useState(false)
   const [error, setError] = useState(null)
-  const [abortController, setAbortController] = useState(null)
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+
+  // Refs so the async stream handler and cancel button share the same values
+  const controllerRef = useRef(null)
+  const isCancelledRef = useRef(false)
 
   useEffect(() => {
     const controller = new AbortController()
-    setAbortController(controller)
-    setError(null) // Clear error at start
-    setCompleted(false) // Reset completed state
+    controllerRef.current = controller
+    isCancelledRef.current = false
+    setError(null)
+    setCompleted(false)
 
     const startPull = async () => {
       try {
@@ -49,13 +54,11 @@ function PullProgressModal({ modelName, onClose, onComplete }) {
         const reader = response.body.getReader()
         const decoder = new TextDecoder()
         let buffer = ''
-        let isCancelled = false
 
         while (true) {
           const { done, value } = await reader.read()
           if (done) {
-            // Stream ended naturally - successful completion
-            if (!isCancelled) {
+            if (!isCancelledRef.current) {
               setError(null)
               setStatus('Download complete')
               setProgress(100)
@@ -66,20 +69,17 @@ function PullProgressModal({ modelName, onClose, onComplete }) {
 
           buffer += decoder.decode(value, { stream: true })
           const lines = buffer.split('\n')
-          buffer = lines.pop() // Keep incomplete line in buffer
+          buffer = lines.pop()
 
           for (const line of lines) {
             if (!line.trim()) continue
-            
             try {
               const data = JSON.parse(line)
-              
-              // Update status from Ollama API response
+
               if (data.status) {
                 setStatus(data.status)
               }
 
-              // Parse progress if available
               if (data.digest && data.total && data.completed) {
                 const pct = Math.round((data.completed / data.total) * 100)
                 setProgress(pct)
@@ -87,7 +87,6 @@ function PullProgressModal({ modelName, onClose, onComplete }) {
                 setTotalSize(data.total)
               }
 
-              // Check if completed
               if (data.status === 'success' || data.status === 'pull complete') {
                 setError(null)
                 setStatus('Download complete')
@@ -101,12 +100,13 @@ function PullProgressModal({ modelName, onClose, onComplete }) {
         }
       } catch (err) {
         if (err.name === 'AbortError') {
-          isCancelled = true
-          setStatus('Cancelled')
-          setError('Download was cancelled')
-          setCompleted(false)
+          // Only show cancelled state if the user explicitly triggered it
+          if (isCancelledRef.current) {
+            setStatus('Cancelled')
+            setError('Download was cancelled')
+            setCompleted(false)
+          }
         } else {
-          // Only show error if we got an actual error
           setError(`Failed to download: ${err.message}`)
           setStatus('Error')
           setCompleted(false)
@@ -117,33 +117,33 @@ function PullProgressModal({ modelName, onClose, onComplete }) {
     startPull()
 
     return () => {
+      // Effect cleanup on unmount — abort silently, do NOT mark as cancelled
       controller.abort()
     }
   }, [modelName])
 
-  const handleCancel = async () => {
-    // First abort the client-side fetch
-    if (abortController) {
-      abortController.abort()
-    }
+  const handleCancelClick = () => {
+    setShowCancelConfirm(true)
+  }
 
-    // Then tell the backend to stop the Ollama pull operation
+  const handleConfirmCancel = async () => {
+    setShowCancelConfirm(false)
+    isCancelledRef.current = true
+    controllerRef.current?.abort()
     try {
       await fetch(`/api/models/cancel-pull?model_name=${encodeURIComponent(modelName)}`, {
         method: 'POST',
       })
-    } catch (err) {
-      // Silently fail if cancel request doesn't work
+    } catch {
+      // Silently fail
     }
   }
 
   const handleClose = () => {
-    if (completed || error) {
-      if (completed) {
-        onComplete()
-      } else {
-        onClose()
-      }
+    if (completed) {
+      onComplete()
+    } else {
+      onClose()
     }
   }
 
@@ -158,6 +158,7 @@ function PullProgressModal({ modelName, onClose, onComplete }) {
   const isLoading = !completed && !error && progress < 100
 
   return (
+    <>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
         <div className="p-6">
@@ -231,7 +232,7 @@ function PullProgressModal({ modelName, onClose, onComplete }) {
             {!completed && !error && (
               <>
                 <button
-                  onClick={handleCancel}
+                  onClick={handleCancelClick}
                   className="flex-1 px-4 py-2 border border-slate-300 text-shep-text-muted rounded-lg hover:bg-shep-surface-light transition-colors font-medium text-sm"
                 >
                   Cancel
@@ -264,6 +265,40 @@ function PullProgressModal({ modelName, onClose, onComplete }) {
         </div>
       </div>
     </div>
+
+      {/* Cancel confirmation */}
+      {showCancelConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg shadow-2xl max-w-sm w-full mx-4 p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-8 h-8 bg-amber-50 rounded-full flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-shep-text-primary">Cancel Download?</h3>
+            </div>
+            <p className="text-slate-600 text-sm mb-6">
+              Are you sure you want to cancel downloading <span className="font-medium">{modelName}</span>? The partial download will be discarded.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCancelConfirm(false)}
+                className="flex-1 px-4 py-2 border border-slate-300 text-shep-text-muted rounded-lg hover:bg-slate-50 transition-colors font-medium text-sm"
+              >
+                Keep Downloading
+              </button>
+              <button
+                onClick={handleConfirmCancel}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm"
+              >
+                Yes, Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 

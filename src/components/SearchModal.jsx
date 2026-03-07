@@ -54,11 +54,15 @@ function SearchModal({ installedModels = [], onClose, onModelAdded }) {
   }, []);
 
   // Handle search with proper state management
+
   const handleSearch = useCallback(async (query) => {
     if (!query.trim()) {
       // Reset to all available models when search is cleared
       const installedNames = new Set(installedModels);
-      const available = libraryModels.filter(m => !installedNames.has(m.name));
+      const available = libraryModels.filter(m => 
+        !installedNames.has(m.name) && 
+        m.name // Ensure name exists
+      );
       setSearchResults(available);
       return;
     }
@@ -74,11 +78,17 @@ function SearchModal({ installedModels = [], onClose, onModelAdded }) {
       setError(null);
       
       const installedNames = new Set(installedModels);
-      const filtered = libraryModels.filter(m => 
-        !installedNames.has(m.name) && 
-        (m.name.toLowerCase().includes(query.toLowerCase()) || 
-         m.desc.toLowerCase().includes(query.toLowerCase()))
-      );
+      const filtered = libraryModels.filter(m => {
+        // Ensure required properties exist
+        const name = m.name || '';
+        const desc = m.desc || '';
+        
+        return (
+          !installedNames.has(name) && 
+          (name.toLowerCase().includes(query.toLowerCase()) || 
+          desc.toLowerCase().includes(query.toLowerCase()))
+        );
+      });
       
       // Cache results to prevent reset issues
       setCachedResults(prev => new Map(prev.set(query, filtered)));
