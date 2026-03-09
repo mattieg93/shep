@@ -39,7 +39,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [1.1.0] - 2026-03-09
+
+### Added
+
+- Model sorting: loaded models appear first (alphabetically), followed by unloaded models (alphabetically)
+- "Copy Path to Clipboard" button in Settings panel for easy access to OLLAMA_MODELS path
+- Settings panel now displays as modal popup instead of inline panel for better UX
+- Close (X) button in Settings modal header
+
+### Changed
+
+- Updated "Reset to Default" button styling to light red theme (`bg-red-100`, `text-red-700`) matching delete confirmation aesthetic
+- Settings panel no longer pushes down models table when opened
+
+### Technical Notes
+
+- Browser security restrictions prevent direct file system access (replaced "Open Directory" with clipboard copy)
+- Modal implementation uses fixed positioning with semi-transparent backdrop (z-50)
+- Model sorting implemented via `sortModels()` helper function in App.jsx
 
 ### Planned Features
 
@@ -51,3 +69,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [ ] Export/import model collections
 - [ ] Automated model updates
 - [ ] Dark mode toggle
+- [ ] Click-outside-to-close for modals
+- [ ] Visual feedback for clipboard operations
