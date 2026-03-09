@@ -32,12 +32,37 @@ const App = () => {
   const [isDaemonStarting, setIsDaemonStarting] = useState(false);
   const intervalRef = useRef(null);
 
+  // Helper function to sort models - loaded models first (alphabetically), then unloaded models (alphabetically)
+  const sortModels = (models) => {
+    const loadedModels = [];
+    const unloadedModels = [];
+
+    models.forEach(model => {
+      if (model.loaded) {
+        loadedModels.push(model);
+      } else {
+        unloadedModels.push(model);
+      }
+    });
+
+    // Sort both arrays alphabetically by name
+    loadedModels.sort((a, b) => a.name.localeCompare(b.name));
+    unloadedModels.sort((a, b) => a.name.localeCompare(b.name));
+
+    // Return loaded models first, then unloaded ones
+    return [...loadedModels, ...unloadedModels];
+  };
+
   const fetchModels = useCallback(async () => {
     try {
       const response = await axios.get('/api/models');
       const data = response.data;
       setDaemonStatus(data.daemon);
-      setModels(data.models || []);
+      
+      // Sort the models according to requirements
+      const sortedModels = sortModels(data.models || []);
+      setModels(sortedModels);
+      
       setError(data.error || null);
     } catch (err) {
       setError('Failed to connect to backend. Is it running?');
@@ -170,10 +195,23 @@ const App = () => {
         />
       </div>
 
-      {/* Settings Panel (inline toggle) */}
+      {/* Settings Panel (modal) */}
       {showSettings && (
-        <div className="mb-8 bg-white rounded-lg border border-slate-200">
-          <SettingsPanel />
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-shep-text-primary">Settings</h3>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <SettingsPanel />
+          </div>
         </div>
       )}
 

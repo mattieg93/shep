@@ -126,15 +126,41 @@ function SettingsPanel() {
           placeholder={DEFAULT_MODELS_PATH}
           className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-shep-cyan-400 focus:border-transparent text-sm font-mono"
         />
-        
+
         {/* Actions for custom paths */}
         {isCustomPath && (
           <div className="flex gap-2 mt-3">
             <button
               onClick={handleResetToDefault}
-              className="flex-1 px-3 py-1.5 bg-slate-200 text-shep-text-muted rounded text-xs font-medium hover:bg-slate-300 transition-colors"
+              className="flex-1 px-3 py-1.5 bg-red-100 text-red-700 rounded text-xs font-medium hover:bg-red-200 transition-colors"
             >
               Reset to Default
+            </button>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(ollama_models || DEFAULT_MODELS_PATH);
+              }}
+              className="flex-1 px-3 py-1.5 bg-slate-200 text-shep-text-muted rounded text-xs font-medium hover:bg-slate-300 transition-colors"
+            >
+              Copy Path to Clipboard
+            </button>
+          </div>
+        )}
+
+        {/* Default path */}
+        {!isCustomPath && (
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={handleResetToDefault}
+              className="flex-1 px-3 py-1.5 bg-red-100 text-red-700 rounded text-xs font-medium hover:bg-red-200 transition-colors"
+            >
+              Reset to Default
+            </button>
+            <button
+              onClick={() => window.open(`file://${DEFAULT_MODELS_PATH.replace('~', '/Users/' + (window.navigator ? 'user' : 'unknown'))}`, '_blank')}
+              className="flex-1 px-3 py-1.5 bg-slate-200 text-shep-text-muted rounded text-xs font-medium hover:bg-slate-300 transition-colors"
+            >
+              Open Directory
             </button>
           </div>
         )}
@@ -149,9 +175,9 @@ function SettingsPanel() {
               <div className="text-sm text-amber-900 flex-1">
                 <p className="font-semibold mb-2">Custom Path Detected</p>
                 <p className="mb-3 text-amber-800">
-                  To use this custom location, you must restart Ollama with the <code className="bg-white px-1 rounded text-xs font-mono">OLLAMA_MODELS</code> environment variable set. 
+                  To use this custom location, you must restart Ollama with the <code className="bg-white px-1 rounded text-xs font-mono">OLLAMA_MODELS</code> environment variable set.
                 </p>
-                
+
                 <p className="text-xs text-amber-700 mb-2">
                   <strong>If using a virtual environment or container:</strong> Run this command in your terminal before starting Ollama:
                 </p>

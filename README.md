@@ -92,7 +92,7 @@ Then open **http://localhost:5173** in your browser.
 ### Screenshots
 
 <table>
-   <tr>
+   <tr>~
       <td align="center">
          <img src="public/assets/screenshots/home.png" alt="Home dashboard" /><br />
          <sub><b>Home Dashboard</b> - Installed models, daemon status, and live system overview.</sub>

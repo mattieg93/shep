@@ -70,3 +70,7 @@ Thumbs.db
 .ruff_cache/
 .coverage
 htmlcov/
+
+QWEN.md
+CLAUDE.md
+PORTFOLIO.md
