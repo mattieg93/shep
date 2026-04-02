@@ -288,6 +288,36 @@ async def get_library_models():
     return {"models": []}
 
 
+@app.get("/api/library/models/{model_name}/tags")
+async def get_model_tags(model_name: str):
+    """Fetch available parameter-count variants for a specific model from Ollama library"""
+    import re as regex
+
+    def param_sort_key(tag: str) -> float:
+        num = float(regex.sub(r'[^\d.]', '', tag))
+        return num / 1000 if tag.lower().endswith('m') else num
+
+    try:
+        response = requests.get(
+            f"https://ollama.com/library/{model_name}",
+            timeout=8,
+            headers={"User-Agent": "Shep-OllamaManager"}
+        )
+        if response.status_code == 200:
+            html = response.text
+            # Match href="/library/{model_name}:{tag}" patterns
+            pattern = rf'href=["\']?/library/{regex.escape(model_name)}:([a-zA-Z0-9][a-zA-Z0-9\-\.]*)'
+            tags_found = regex.findall(pattern, html)
+            # Filter to parameter-count only: e.g. 1b, 7b, 3.8b, 300m
+            param_pattern = regex.compile(r'^\d+(\.\d+)?[bm]$', regex.IGNORECASE)
+            filtered = list({t.lower() for t in tags_found if param_pattern.match(t)})
+            filtered.sort(key=param_sort_key)
+            return {"tags": filtered}
+    except Exception as e:
+        print(f"Failed to fetch tags for {model_name}: {e}")
+
+    return {"tags": []}
+
 
 @app.post("/api/models/cancel-pull")
 async def cancel_pull(model_name: str):

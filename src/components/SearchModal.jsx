@@ -14,6 +14,30 @@ function SearchModal({ installedModels = [], onClose, onModelAdded }) {
   // Cache for storing search results to prevent reset issues
   const [cachedResults, setCachedResults] = useState(new Map());
 
+  // Variant selection state
+  const [variantData, setVariantData] = useState(new Map());       // modelName -> string[]
+  const [loadingVariants, setLoadingVariants] = useState(new Set()); // modelName (loading)
+  const [selectedVariants, setSelectedVariants] = useState(new Map()); // modelName -> tag
+  const [revealedVariants, setRevealedVariants] = useState(new Set()); // models where Pull was clicked
+
+  const fetchVariants = async (modelName) => {
+    if (variantData.has(modelName) || loadingVariants.has(modelName)) return;
+
+    setLoadingVariants(prev => new Set(prev).add(modelName));
+    try {
+      const response = await axios.get(`/api/library/models/${encodeURIComponent(modelName)}/tags`);
+      const tags = response.data.tags || [];
+      setVariantData(prev => new Map(prev).set(modelName, tags));
+      if (tags.length > 0) {
+        setSelectedVariants(prev => new Map(prev).set(modelName, tags[0]));
+      }
+    } catch {
+      setVariantData(prev => new Map(prev).set(modelName, []));
+    } finally {
+      setLoadingVariants(prev => { const s = new Set(prev); s.delete(modelName); return s; });
+    }
+  };
+
   const popularModels = [
     { name: 'llama2', desc: 'Meta Llama 2 Chat - 7B and 13B variants', url: 'https://ollama.com/library/llama2' },
     { name: 'mistral', desc: 'Mistral 7B - Fast and efficient', url: 'https://ollama.com/library/mistral' },
@@ -188,7 +212,29 @@ function SearchModal({ installedModels = [], onClose, onModelAdded }) {
               <p className="text-sm text-slate-600 mb-4">
                 {searchQuery ? `${searchResults.length} models found` : `${searchResults.length} popular models available`}
               </p>
-              {searchResults.map((model) => (
+              {searchResults.map((model) => {
+                const tags = variantData.get(model.name);
+                const isLoadingTags = loadingVariants.has(model.name);
+                const isRevealed = revealedVariants.has(model.name);
+                const hasVariants = tags && tags.length > 0;
+                const selectedTag = selectedVariants.get(model.name);
+
+                const handlePullClick = () => {
+                  if (!isRevealed) {
+                    // First click: reveal variant selector (and fetch if needed)
+                    setRevealedVariants(prev => new Set(prev).add(model.name));
+                    fetchVariants(model.name);
+                    return;
+                  }
+                  // Second+ click (or first click if no variants): pull with selected tag
+                  if (hasVariants && selectedTag) {
+                    handlePullModel(`${model.name}:${selectedTag}`);
+                  } else if (!isLoadingTags) {
+                    handlePullModel(model.name);
+                  }
+                };
+
+                return (
                 <div
                   key={model.name}
                   className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
@@ -206,14 +252,40 @@ function SearchModal({ installedModels = [], onClose, onModelAdded }) {
                       {model.desc && <p className="text-sm text-slate-600">{model.desc}</p>}
                     </div>
                   </div>
-                  <button
-                    onClick={() => handlePullModel(model.name)}
-                    className="px-4 py-2 bg-shep-indigo-600 text-white rounded-lg hover:bg-shep-indigo-700 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 ml-4"
-                  >
-                    Pull
-                  </button>
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                    {/* Variant dropdown — visible after first Pull click */}
+                    {isRevealed && (
+                      isLoadingTags ? (
+                        <span className="text-xs text-slate-400 flex items-center gap-1">
+                          <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Loading…
+                        </span>
+                      ) : hasVariants ? (
+                        <select
+                          value={selectedTag || ''}
+                          onChange={(e) => setSelectedVariants(prev => new Map(prev).set(model.name, e.target.value))}
+                          className="px-2 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-shep-cyan-400 focus:border-transparent bg-white"
+                        >
+                          {tags.map(tag => (
+                            <option key={tag} value={tag}>{tag}</option>
+                          ))}
+                        </select>
+                      ) : null
+                    )}
+                    <button
+                      onClick={handlePullClick}
+                      disabled={isRevealed && isLoadingTags}
+                      className="px-4 py-2 bg-shep-indigo-600 text-white rounded-lg hover:bg-shep-indigo-700 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Pull
+                    </button>
+                  </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-12">
