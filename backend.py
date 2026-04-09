@@ -29,6 +29,8 @@ import asyncio
 import json
 import os
 import re
+import shutil
+import time
 from pathlib import Path
 
 app = FastAPI()
@@ -470,6 +472,83 @@ async def stop_daemon():
 async def health_check():
     """Health check endpoint"""
     return {"status": "ok"}
+
+
+_update_cache: dict = {"data": None, "checked_at": 0}
+_UPDATE_CACHE_TTL = 3600  # 1 hour
+
+
+@app.get("/api/update-check")
+async def update_check():
+    """Check whether a newer version of Ollama is available."""
+    global _update_cache
+
+    # Return cached result if still fresh
+    if _update_cache["data"] is not None and time.time() - _update_cache["checked_at"] < _UPDATE_CACHE_TTL:
+        return _update_cache["data"]
+
+    _no_update = {"update_available": False}
+
+    # Get installed version from local daemon
+    try:
+        v_resp = requests.get(f"{OLLAMA_API_URL}/api/version", timeout=5)
+        if v_resp.status_code != 200:
+            return _no_update
+        current_version = v_resp.json().get("version", "").lstrip("v")
+        if not current_version:
+            return _no_update
+    except Exception:
+        return _no_update
+
+    # Get latest release from GitHub
+    try:
+        gh_resp = requests.get(
+            "https://api.github.com/repos/ollama/ollama/releases/latest",
+            timeout=8,
+            headers={"Accept": "application/vnd.github+json", "User-Agent": "Shep-OllamaManager"},
+        )
+        if gh_resp.status_code != 200:
+            return _no_update
+        latest_version = gh_resp.json().get("tag_name", "").lstrip("v")
+        if not latest_version:
+            return _no_update
+    except Exception:
+        return _no_update
+
+    # Compare using tuple of ints to avoid string ordering bugs ("0.9" vs "0.10")
+    def semver_tuple(v: str):
+        try:
+            return tuple(int(x) for x in v.split("."))
+        except ValueError:
+            return (0,)
+
+    update_available = semver_tuple(latest_version) > semver_tuple(current_version)
+
+    if not update_available:
+        result = {"update_available": False, "current_version": current_version, "latest_version": latest_version}
+        _update_cache = {"data": result, "checked_at": time.time()}
+        return result
+
+    # Detect install method to give a tailored upgrade message
+    if Path("/Applications/Ollama.app").exists():
+        install_method = "app"
+        upgrade_message = "Click the Ollama icon in your menu bar and choose \"Check for Updates\", or download from ollama.com"
+    elif shutil.which("ollama") and "homebrew" in (shutil.which("ollama") or "").lower():
+        install_method = "brew"
+        upgrade_message = "Run `brew upgrade ollama` in your terminal, then restart Ollama"
+    else:
+        install_method = "other"
+        upgrade_message = "Visit ollama.com to download the latest version"
+
+    result = {
+        "update_available": True,
+        "current_version": current_version,
+        "latest_version": latest_version,
+        "install_method": install_method,
+        "upgrade_message": upgrade_message,
+    }
+    _update_cache = {"data": result, "checked_at": time.time()}
+    return result
 
 
 @app.get("/api/settings")

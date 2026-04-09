@@ -30,6 +30,8 @@ const App = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [isDaemonStarting, setIsDaemonStarting] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState(null);
+  const [dismissedUpdate, setDismissedUpdate] = useState(false);
   const intervalRef = useRef(null);
 
   // Helper function to sort models - loaded models first (alphabetically), then unloaded models (alphabetically)
@@ -74,6 +76,12 @@ const App = () => {
     intervalRef.current = setInterval(fetchModels, 5000);
     return () => clearInterval(intervalRef.current);
   }, [fetchModels]);
+
+  useEffect(() => {
+    axios.get('/api/update-check').then(res => {
+      if (res.data.update_available) setUpdateInfo(res.data);
+    }).catch(() => {});
+  }, []);
 
   const handleStartDaemon = async () => {
     try {
@@ -182,6 +190,34 @@ const App = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <p className="text-red-700">{error}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Ollama update banner */}
+      {updateInfo && !dismissedUpdate && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-2">
+              <svg className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+              </svg>
+              <div>
+                <p className="text-amber-800 font-medium text-sm">
+                  Ollama {updateInfo.latest_version} is available <span className="font-normal text-amber-700">(you have {updateInfo.current_version})</span>
+                </p>
+                <p className="text-amber-700 text-sm mt-0.5">{updateInfo.upgrade_message}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setDismissedUpdate(true)}
+              className="text-amber-400 hover:text-amber-600 transition-colors flex-shrink-0"
+              aria-label="Dismiss"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
       )}
