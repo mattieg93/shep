@@ -126,6 +126,7 @@ async def list_models():
                 "size_vram": vram_size,
                 "modified_at": model.get("modified_at", ""),
                 "loaded": is_loaded,
+                "digest": model.get("digest", ""),
             }
             
             # Add expiry info if model is loaded
@@ -472,6 +473,128 @@ async def stop_daemon():
 async def health_check():
     """Health check endpoint"""
     return {"status": "ok"}
+
+
+def parse_relative_age(text: str):
+    """Convert a relative age string like '3 days ago' to a timezone-aware datetime."""
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
+    m = re.match(r'(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago', text.strip().lower())
+    if not m:
+        return None
+    n = int(m.group(1))
+    unit = m.group(2)
+    deltas = {
+        'second': timedelta(seconds=n),
+        'minute': timedelta(minutes=n),
+        'hour': timedelta(hours=n),
+        'day': timedelta(days=n),
+        'week': timedelta(weeks=n),
+        'month': timedelta(days=n * 30),
+        'year': timedelta(days=n * 365),
+    }
+    return now - deltas[unit]
+
+
+def fetch_tag_publish_date(model_name: str, tag: str):
+    """Scrape the individual tag page on ollama.com to find when the model blob was last updated.
+
+    The Details table on the page contains plain text like "Updated 1 week ago" — this reflects
+    when the actual model weights were last built/uploaded, which is the right value to compare
+    against the user's local modified_at.
+
+    The top-level "Updated N days ago" (which has a title= exact date) reflects when the :tag
+    pointer was last moved (e.g. metadata change, new variant added) and can be a false positive.
+
+    Returns a timezone-aware datetime, or None on failure.
+    """
+    try:
+        resp = requests.get(
+            f"https://ollama.com/library/{model_name}:{tag}",
+            timeout=8,
+            headers={"User-Agent": "Shep-OllamaManager"},
+        )
+        if resp.status_code != 200:
+            return None
+        html = resp.text
+    except Exception:
+        return None
+
+    # The Details section blob row: <p ...>Updated N unit ago</p>
+    # It has no title= attribute so we parse the relative text.
+    details_m = re.search(r'<div[^>]+bg-neutral-50[^>]*>.*?Updated\s+(\d+\s+\w+\s+ago)', html, re.DOTALL)
+    if details_m:
+        return parse_relative_age(details_m.group(1))
+
+    return None
+
+
+_model_updates_cache: dict = {"data": None, "checked_at": 0}
+_MODEL_UPDATES_CACHE_TTL = 300  # 5 minutes
+
+
+@app.get("/api/models/check-updates")
+async def check_model_updates():
+    """Check which installed models have newer versions available on the OCI registry."""
+    global _model_updates_cache
+
+    if (
+        _model_updates_cache["data"] is not None
+        and time.time() - _model_updates_cache["checked_at"] < _MODEL_UPDATES_CACHE_TTL
+    ):
+        return _model_updates_cache["data"]
+
+    daemon_status = check_daemon_status()
+    if not daemon_status["running"]:
+        return {"updates": {}}
+
+    try:
+        response = requests.get(f"{OLLAMA_API_URL}/api/tags", timeout=10)
+        if response.status_code != 200:
+            return {"updates": {}}
+        models = response.json().get("models", [])
+    except Exception:
+        return {"updates": {}}
+
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    def check_one(model: dict) -> tuple[str, bool]:
+        from datetime import datetime, timezone, timedelta
+
+        model_id = model.get("name", "")
+        modified_at_str = model.get("modified_at", "")
+        if not model_id or not modified_at_str:
+            return model_id, False
+        try:
+            local_dt = datetime.fromisoformat(modified_at_str.replace("Z", "+00:00"))
+            if local_dt.tzinfo is None:
+                local_dt = local_dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            return model_id, False
+        parts = model_id.split(":")
+        name = parts[0]
+        tag = parts[1] if len(parts) > 1 else "latest"
+        publish_dt = fetch_tag_publish_date(name, tag)
+        # Require publish_dt to be more than 1 day newer than local pull to
+        # absorb imprecision from relative date strings ("1 week ago" ± ~12h).
+        if publish_dt and publish_dt > local_dt + timedelta(days=1):
+            return model_id, True
+        return model_id, False
+
+    updates: dict[str, bool] = {}
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(check_one, m): m for m in models}
+        for future in as_completed(futures):
+            try:
+                model_id, has_update = future.result(timeout=20)
+                if has_update:
+                    updates[model_id] = True
+            except Exception:
+                pass
+
+    result = {"updates": updates}
+    _model_updates_cache = {"data": result, "checked_at": time.time()}
+    return result
 
 
 _update_cache: dict = {"data": None, "checked_at": 0}

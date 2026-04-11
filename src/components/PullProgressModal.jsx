@@ -54,11 +54,12 @@ function PullProgressModal({ modelName, onClose, onComplete }) {
         const reader = response.body.getReader()
         const decoder = new TextDecoder()
         let buffer = ''
+        let streamError = null
 
         while (true) {
           const { done, value } = await reader.read()
           if (done) {
-            if (!isCancelledRef.current) {
+            if (!isCancelledRef.current && !streamError) {
               setError(null)
               setStatus('Download complete')
               setProgress(100)
@@ -75,6 +76,12 @@ function PullProgressModal({ modelName, onClose, onComplete }) {
             if (!line.trim()) continue
             try {
               const data = JSON.parse(line)
+
+              if (data.error) {
+                streamError = data.error
+                setError(data.error)
+                setStatus('Error')
+              }
 
               if (data.status) {
                 setStatus(data.status)

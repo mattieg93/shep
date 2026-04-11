@@ -17,6 +17,7 @@ import SearchModal from './components/SearchModal';
 import SettingsPanel from './components/SettingsPanel';
 import DeleteConfirmationModal from './components/DeleteConfirmationModal';
 import StopDaemonConfirmationModal from './components/StopDaemonConfirmationModal';
+import PullProgressModal from './components/PullProgressModal';
 
 const App = () => {
   const [daemonStatus, setDaemonStatus] = useState(null);
@@ -32,6 +33,11 @@ const App = () => {
   const [isDaemonStarting, setIsDaemonStarting] = useState(false);
   const [updateInfo, setUpdateInfo] = useState(null);
   const [dismissedUpdate, setDismissedUpdate] = useState(false);
+  const [modelUpdates, setModelUpdates] = useState(new Map());
+  const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
+  const [updateQueue, setUpdateQueue] = useState([]);
+  const [updatingModel, setUpdatingModel] = useState(null);
+  const [toast, setToast] = useState(null);
   const intervalRef = useRef(null);
 
   // Helper function to sort models - loaded models first (alphabetically), then unloaded models (alphabetically)
@@ -81,6 +87,31 @@ const App = () => {
     axios.get('/api/update-check').then(res => {
       if (res.data.update_available) setUpdateInfo(res.data);
     }).catch(() => {});
+  }, []);
+
+  const checkModelUpdates = useCallback(async () => {
+    if (isCheckingUpdates) return;
+    setIsCheckingUpdates(true);
+    try {
+      const res = await axios.get('/api/models/check-updates');
+      const rawUpdates = res.data.updates || {};
+      const newMap = new Map(Object.entries(rawUpdates).filter(([, v]) => v));
+      setModelUpdates(newMap);
+      if (newMap.size === 0) {
+        setToast('All models are up to date');
+        setTimeout(() => setToast(null), 3000);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setIsCheckingUpdates(false);
+    }
+  }, [isCheckingUpdates]);
+
+  useEffect(() => {
+    // Auto-check for model updates once on mount (cached for 5 min on backend)
+    checkModelUpdates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleStartDaemon = async () => {
@@ -152,6 +183,30 @@ const App = () => {
   const handleModelAdded = () => {
     fetchModels();
   };
+
+  const handleUpdateModel = useCallback((modelId) => {
+    setUpdatingModel(modelId);
+  }, []);
+
+  const handleUpdateAll = useCallback(() => {
+    const staleIds = [...modelUpdates.keys()];
+    if (staleIds.length === 0) return;
+    setUpdatingModel(staleIds[0]);
+    setUpdateQueue(staleIds.slice(1));
+  }, [modelUpdates]);
+
+  const handleUpdatePullComplete = useCallback(() => {
+    if (updatingModel) {
+      setModelUpdates(prev => { const m = new Map(prev); m.delete(updatingModel); return m; });
+    }
+    setUpdatingModel(null);
+    if (updateQueue.length > 0) {
+      setUpdatingModel(updateQueue[0]);
+      setUpdateQueue(prev => prev.slice(1));
+    } else {
+      fetchModels();
+    }
+  }, [updatingModel, updateQueue, fetchModels]);
 
   // Build modelsUsage shape expected by StopDaemonConfirmationModal
   const modelsUsage = models.reduce((acc, m) => {
@@ -255,6 +310,35 @@ const App = () => {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-shep-text-primary">Models</h2>
         <div className="flex gap-3">
+          {modelUpdates.size > 0 && (
+            <button
+              onClick={handleUpdateAll}
+              disabled={!!updatingModel}
+              className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors font-medium flex items-center gap-2 disabled:opacity-50"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Update All ({modelUpdates.size})
+            </button>
+          )}
+          <button
+            onClick={checkModelUpdates}
+            disabled={isCheckingUpdates}
+            className="px-4 py-2 bg-slate-200 text-shep-text-muted rounded-lg hover:bg-slate-300 transition-colors font-medium flex items-center gap-2 disabled:opacity-50"
+          >
+            {isCheckingUpdates ? (
+              <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+              </svg>
+            )}
+            {isCheckingUpdates ? 'Checking...' : 'Check for Updates'}
+          </button>
           <button
             onClick={handleRefresh}
             disabled={isManualRefreshing}
@@ -282,6 +366,8 @@ const App = () => {
         <ModelsTable
           models={models}
           onDelete={handleDeleteModel}
+          modelUpdates={modelUpdates}
+          onUpdateModel={handleUpdateModel}
         />
       </div>
 
@@ -330,6 +416,22 @@ const App = () => {
             onConfirm={handleConfirmStop}
             onCancel={() => setShowStopConfirm(false)}
           />
+        </div>
+      )}
+
+      {/* Update pull modal */}
+      {updatingModel && (
+        <PullProgressModal
+          modelName={updatingModel}
+          onComplete={handleUpdatePullComplete}
+          onClose={() => { setUpdatingModel(null); setUpdateQueue([]); }}
+        />
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-sm px-4 py-2 rounded-lg shadow-lg z-50">
+          {toast}
         </div>
       )}
     </div>
